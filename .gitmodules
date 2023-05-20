@@ -1,0 +1,3 @@
+[submodule "ru.mironovmike.kafka-rest"]
+	path = ru.mironovmike.kafka-rest
+	url = git@github.com:MironovMike/ru.mironovmike.kafka-rest.git
