@@ -1,0 +1,25 @@
+version: '3.9'
+services:
+    registry:
+        image: registry:2
+        restart: always
+        environment:
+          REGISTRY_HTTP_HOST: https://alpha.mironovmike.ru:5000
+          REGISTRY_STORAGE_DELETE_ENABLED: true
+          REGISTRY_AUTH: htpasswd
+          REGISTRY_AUTH_HTPASSWD_REALM: "Registry Realm"
+          REGISTRY_AUTH_HTPASSWD_PATH: auth/registry.password
+        ports:
+          - 5000:5000
+        volumes:
+          - registry:/var/lib/registry
+          - ${AUTH_PATH}:/auth
+    kafka-rest:
+        image: alpha.mironovmike.ru:5000/kafka-rest:latest
+        restart: always
+        depends_on:
+          - registry
+        ports:
+          - 80:8080
+volumes:
+    registry:
