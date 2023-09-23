@@ -2,7 +2,7 @@ version: '3.9'
 services:
     registry:
         image: registry:2
-        restart: always
+        restart: unless-stopped
         environment:
           REGISTRY_HTTP_HOST: https://alpha.mironovmike.ru:5000
           REGISTRY_STORAGE_DELETE_ENABLED: true
@@ -14,12 +14,93 @@ services:
         volumes:
           - registry:/var/lib/registry
           - ${AUTH_PATH}:/auth
+    kafka:
+        image: bitnami/kafka:3.2.3
+        restart: unless-stopped
+        environment:
+          - ALLOW_PLAINTEXT_LISTENER=yes
+          - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+          - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://alpha.local:9094
+          - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+        ports:
+          - 9092:9092
+          - 9094:9094
     kafka-rest:
         image: alpha.mironovmike.ru:5000/kafka-rest:latest
-        restart: always
+        restart: unless-stopped
         depends_on:
           - registry
         ports:
           - 80:8080
+    mysql:
+        image: mysql:latest
+        restart: unless-stopped
+        environment:
+          - MYSQL_ROOT_PASSWORD=H89BTaTM6ipMCrNkr82G
+          - MYSQL_DATABASE=b24
+          - MYSQL_USER=bitrix
+          - MYSQL_PASSWORD=bitrix
+        volumes:
+          - mysql:/var/lib/mysql
+        ports:
+          - 3306:3306
+    kafka-connect:
+        image: confluentinc/cp-kafka-connect:latest
+        restart: unless-stopped
+        environment:
+          - CONNECT_BOOTSTRAP_SERVERS=kafka:9092
+          - CONNECT_GROUP_ID=kafka_connect
+          - CONNECT_CONFIG_STORAGE_TOPIC=_connect-configs
+          - CONNECT_OFFSET_STORAGE_TOPIC=_connect-offsets
+          - CONNECT_STATUS_STORAGE_TOPIC=_connect-status
+          - CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:8081
+          - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.storage.StringConverter
+          - CONNECT_VALUE_CONVERTER=io.confluent.connect.avro.AvroConverter
+          - CONNECT_REST_ADVERTISED_HOST_NAME=kafka-connect
+          - CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=1
+          - CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=1
+          - CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1
+          - CONNECT_PLUGIN_PATH=/usr/share/java,/usr/share/confluent-hub-components,/data/connect-jars
+        ports:
+          - 8083:8083
+        depends_on:
+          - kafka
+        volumes:
+          - ./connect-jars:/data/connect-jars 
+    schema-registry:
+        image: confluentinc/cp-schema-registry:latest
+        restart: unless-stopped
+        ports:
+          - 8081:8081
+        depends_on:
+          - kafka
+        environment:
+          - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+          - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=kafka:9092
+    elasticsearch:
+        image:  bitnami/elasticsearch:latest
+        container_name: elasticsearch
+        restart: unless-stopped
+        ports:
+          - 9200:9200
+        volumes:
+          - elasticsearch:/bitnami/elasticsearch/data
+    kibana:
+        image: bitnami/kibana:latest
+        container_name: kibana
+        restart: unless-stopped
+        depends_on:
+          - elasticsearch
+        ports:
+          - 5601:5601
+        environment:
+          - xpack.security.enabled="false"
+          - discovery.type="single-node"
+          - KIBANA_ELASTICSEARCH_URL=elasticsearch
+        volumes:
+          - kibana:/bitnami/kibana
 volumes:
     registry:
+    mysql:
+    elasticsearch:
+    kibana:
